@@ -75,7 +75,7 @@ HORIZON_LEN = (end_date - start_date).days
 def make_env(num_envs: int = 1, start=TRAIN_START_DATE, end=TRAIN_END_DATE):
     # Load training data
     loaded_data = pd.read_csv(
-        "/Users/nikh/Columbia/parallel_finrl/StockTradeVecSim/train_data.csv"
+        "./train_data.csv"
     )
     train_data = data_split(loaded_data, start, end)
 
@@ -166,10 +166,10 @@ def samples_per_second(env, agent):
         agent.last_state = states[0].clone().detach()
 
         start_time = time.time()
-        states, actions, logprobs, rewards, undones = agent.explore_vec_env(
+        states, actions, logprobs, rewards, undones, unmasks = agent._explore_vec_env(
             env, horizon_len
         )
-        agent.update_net((states, actions, logprobs, rewards, undones))
+        agent.update_net((states, actions, logprobs, rewards, undones, unmasks))
         episode_duration = time.time() - start_time
 
         # Fetch total assets
@@ -221,22 +221,22 @@ def plot_sample_rate(filepath, vecenvs):
 
 
 if __name__ == "__main__":
-    pkl_filename = "./output/env_performance_data.pkl"
+    pkl_filename = "./output/stock_env_performance_data.pkl"
 
     env_counts = [2 ** x for x in range(0, 12)]
 
-    # if not os.path.exists(pkl_filename):
-    #     data = {}
-    #     for env_count in env_counts:
-    #         env = make_env(
-    #             num_envs=env_count, start=TRAIN_START_DATE, end=TRAIN_END_DATE
-    #         )
-    #         agent = make_agent(env, num_envs=env_count)
-    #         env_data = samples_per_second(env, agent)
+    if not os.path.exists(pkl_filename):
+        data = {}
+        for env_count in env_counts:
+            env = make_env(
+                num_envs=env_count, start=TRAIN_START_DATE, end=TRAIN_END_DATE
+            )
+            agent = make_agent(env, num_envs=env_count)
+            env_data = samples_per_second(env, agent)
 
-    #         data[f"{env_count}"] = env_data
+            data[f"{env_count}"] = env_data
 
-    #     results_df = pd.DataFrame(data)
-    #     results_df.to_pickle(pkl_filename)
+        results_df = pd.DataFrame(data)
+        results_df.to_pickle(pkl_filename)
 
     plot_sample_rate(pkl_filename, env_counts)

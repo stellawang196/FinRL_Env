@@ -217,6 +217,7 @@ class VectorizedStockTradingEnv(gym.Env):
                 self.state,
                 self.reward,
                 self.terminal,
+                False,
                 {},
             )
 
@@ -273,6 +274,7 @@ class VectorizedStockTradingEnv(gym.Env):
             self.state,
             self.reward,
             self.terminal,
+            False,
             {},
         )
 
