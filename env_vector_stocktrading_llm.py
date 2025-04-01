@@ -43,6 +43,8 @@ class VectorizedStockTradingEnv(gym.Env):
         tech_indicator_list: list[str],
         turbulence_threshold=None,
         risk_indicator_col="turbulence",
+        llm_sentiment_col="llm_sentiment", #added llm_sentiment
+        llm_risk_col="llm_risk",
         make_plots: bool = False,
         print_verbosity=10,
         day=0,
@@ -87,6 +89,8 @@ class VectorizedStockTradingEnv(gym.Env):
         self.print_verbosity = print_verbosity
         self.turbulence_threshold = turbulence_threshold
         self.risk_indicator_col = risk_indicator_col
+        self.llm_sentiment_col=llm_sentiment_col
+        self.llm_risk_col=llm_risk_col
         self.initial = initial
         self.previous_state = previous_state
         self.model_name = model_name
@@ -207,6 +211,12 @@ class VectorizedStockTradingEnv(gym.Env):
         if actions.ndim == 1:
             print(f"Warning, action dim mismatch with agent. Got {actions.shape}...")
             actions = actions.unsqueeze(0)
+        
+        # Apply LLM sentiment to influence actions
+        llm_sentiments = self.data[self.llm_sentiment_col].values
+        llm_sentiment_factor = 1+0.05*(llm_sentiments-3)*np.sign(actions)
+        actions = actions * llm_sentiment_factor
+
         actions = actions * self.hmax
         actions = actions.to(dtype=torch.int32, device=self.device)
 
@@ -239,7 +249,19 @@ class VectorizedStockTradingEnv(gym.Env):
 
         # After buy and sell, compute rewards
         end_total_assets = self._vmap_get_portfolio_value()
-        reward = (end_total_assets - begin_total_asset) * self.reward_scaling
+
+        # Adjust reward based on risks
+        llm_risk = self.data[self.llm_risk_col].values
+        llm_risk_factor = 1+0.05*(llm_risk-3)
+        stock_value = self.shares*self.current_price
+        total_value = np.sum(stock_value, axis=1, keepdims=True)
+        total_value = np.where(total_value == 0, 1e-8, total_value)
+        value_weights = stock_value / total_value  
+
+        risk_weighted_factor = value_weights * llm_risk_factor
+        risk_weighted_factor = np.sum(risk_weighted_factor, axis=1)
+
+        reward = (end_total_assets - begin_total_asset) * self.reward_scaling / risk_weighted_factor
 
         # update state and env
         self.state = self._vmap_state()
@@ -304,9 +326,9 @@ class VectorizedStockTradingEnv(gym.Env):
 
     # Helper functions for vmap operations
     def _vmap_state(self):
-        def get_state(total, amount, shares, ohlcv, tech_ind):
+        def get_state(total, amount, shares, ohlcv, tech_ind, llm_sentiments, llm_risk):
             return torch.cat(
-                (total, amount, shares, ohlcv.flatten(), tech_ind.flatten())
+                (total, amount, shares, ohlcv.flatten(), tech_ind.flatten(), llm_sentiments, llm_risk)
             )
 
         return torch.vmap(func=get_state, in_dims=(0, 0, 0, None, None), out_dims=0)(
@@ -315,6 +337,8 @@ class VectorizedStockTradingEnv(gym.Env):
             self.shares,
             self.ohlcv,
             self.tech_inds,
+            self.llm_risk_col,
+            self.llm_sentiment_col
         )
 
     def _vmap_get_portfolio_value(self):
