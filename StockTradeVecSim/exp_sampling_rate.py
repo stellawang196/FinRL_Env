@@ -151,6 +151,7 @@ def samples_per_second(env, agent):
     samples = 0
     final_assets = []
     agent.batch_size = 1
+    num_step = 0
 
     data = {
         "Step": [],
@@ -169,13 +170,14 @@ def samples_per_second(env, agent):
         states, actions, logprobs, rewards, undones, unmasks = agent._explore_vec_env(
             env, horizon_len
         )
-        agent.update_net((states, actions, logprobs, rewards, undones, unmasks))
+        num_step += 1
+        #agent.update_net((states, actions, logprobs, rewards, undones, unmasks))
         episode_duration = time.time() - start_time
 
         # Fetch total assets
         _, _, asset_mem = env.render(mode="log")
-        samples = rewards.shape[0] * rewards.shape[1]
-
+        # samples = rewards.shape[0] * rewards.shape[1]
+        samples = num_step * env.num_envs
         data["Step"].append(step)
         data["Reward_per_Second"].append(samples / episode_duration)
 

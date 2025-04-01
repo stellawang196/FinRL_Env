@@ -146,7 +146,9 @@ class AgentPPO(AgentBase):
             reward_sums = advantages + values  # reward_sums.shape == (buffer_size, )
             del rewards, undones, values
 
-            advantages = (advantages - advantages.mean()) / (advantages[::4, ::4].std() + 1e-5)  # avoid CUDA OOM
+            # advantages = (advantages - advantages.mean()) / (advantages[::4, ::4].std() + 1e-5)  # avoid CUDA OOM
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)
+
             assert logprobs.shape == advantages.shape == reward_sums.shape == (buffer_size, states.shape[1])
         buffer = states, actions, unmasks, logprobs, advantages, reward_sums
 
